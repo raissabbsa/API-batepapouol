@@ -1,28 +1,72 @@
-import express from "express"
-import cors from "cors"
+import express, { json } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
 import {MongoClient} from "mongodb"
-import dotenv from "dotenv"
-dotenv.config()
+import joi from "joi"
+import dayjs from "dayjs";
+dotenv.config();
 
-const mongoClient = new MongoClient(process.env.MONGO_URI)
+const server = express();
+server.use(cors());
+server.use(json());
+const mongoClient = new MongoClient("mongodb://localhost:27017")
+let db;
 
-try{
-    await mongoClient.connect()
-    console.log("MongoDB conectado")
-} catch(err) {
-    console.log(err)
-}
-const db = mongoClient.db("batePapoUol")
-
-const app = express()
-app.use(express.json())
-app.use(cors)
-
-console.log(promise)
-
-app.get("/participants", (req,res) => {
-
+mongoClient.connect().then(() => {
+  db= mongoClient.db("batePapoUol")
 })
-app.listen(5000, () => {
-    console.log(`Server running in port: ${5000}`);
-  })
+
+const userSchema = joi.object({
+    name: joi.string().required()
+  });
+
+server.post("/participants", async (req, res) => {
+    const {name} = req.body
+    const validation = userSchema.validate({name}, { abortEarly: true })
+
+    if (validation.error) {
+        const err = validation.error.details.map(detail => detail.message)
+        res.status(402).send(err)
+        return
+    }
+
+    const listUsers = await db.collection("initParticipant").find().toArray()
+    const userFound = listUsers.find(user => user.name ===name)
+    if(userFound){
+        res.sendStatus(409)
+        return
+    }
+    try{
+        const names = await db.collection("initParticipant").insertOne({
+            name: name,
+            lastStatus: Date.now()
+        })
+        await db.collection("message").insertOne({
+            name,
+            to: "todos",
+            text: "entrando na sala...",
+            type: "status",
+            time: `${dayjs().hour()}:${dayjs().minute()}:${dayjs().second()}`
+        })
+        res.sendStatus(201)
+
+    } catch(err) {
+        console.log(err)
+    }
+    
+})
+
+server.get('/participants', async(req, res) => {
+
+    try{
+        const contacts = await db.collection("initParticipant").find().toArray()
+        res.send(contacts)
+    } catch(err) {
+    console.log(err)
+  }
+});
+
+
+server.listen(5000, () => {
+  console.log("Rodando em http://localhost:5000");
+});
