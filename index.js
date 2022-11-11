@@ -66,6 +66,18 @@ server.get('/participants', async(req, res) => {
   }
 });
 
+server.get("/messages", async(req,res) => {
+    const limit = parseInt(req.query.limit)
+    const messages = await db.collection("message").find().toArray()
+    if(limit){
+        const lastMessages = messages.slice(-limit)
+        res.send(lastMessages)
+    }
+    else{
+        res.send(messages)
+    }
+})
+
 
 server.listen(5000, () => {
   console.log("Rodando em http://localhost:5000");
