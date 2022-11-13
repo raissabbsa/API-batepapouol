@@ -79,7 +79,7 @@ server.get('/participants', async (req, res) => {
 server.get("/messages", async (req, res) => {
     const limit = parseInt(req.query.limit)
     const user = req.headers.user
-    const messages = await db.collection("message").find({ to: "todos" }, { to: user }).toArray()
+    const messages = await db.collection("message").find({$or: [{ to: "todos" }, { to: user }, {from: user}]}).toArray()
 
     if (limit) {
         const lastMessages = messages.slice(-limit)
@@ -115,11 +115,10 @@ server.post("/status", async (req, res) => {
     try {
         const isOnline = await db.collection("initParticipant").findOne({ name: user })
         if (isOnline) {
-            const newObject = {
-                name: user,
-                lastStatus: Date.now()
-            }
-            await db.collection("initParticipant").updateOne({_id: new ObjectId()}, {$set: newObject})
+            await db.collection("initParticipant").
+            updateOne(
+                {_id: isOnline._id  }, 
+                {$set: {...isOnline, lastStatus: Date.now()}})
             res.sendStatus(200)
         }
         else {
