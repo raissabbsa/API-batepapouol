@@ -1,7 +1,7 @@
 import express, { json } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { MongoClient } from "mongodb"
+import { MongoClient, ObjectId } from "mongodb"
 import joi from "joi"
 import dayjs from "dayjs";
 dotenv.config();
@@ -112,12 +112,14 @@ server.post("/messages", async (req, res) => {
 })
 server.post("/status", async (req, res) => {
     const user = req.headers.user
-    const isOnline = await db.collection("initParticipant").findOne({ name: user })
-    const lastStatus= Date.now()
-    console.log(isOnline)
     try {
+        const isOnline = await db.collection("initParticipant").findOne({ name: user })
         if (isOnline) {
-            //await db.collection("initParticipant").insertOne({ ...isOnline, lastStatus })
+            const newObject = {
+                name: user,
+                lastStatus: Date.now()
+            }
+            await db.collection("initParticipant").updateOne({_id: new ObjectId()}, {$set: newObject})
             res.sendStatus(200)
         }
         else {
