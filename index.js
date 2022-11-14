@@ -12,10 +12,10 @@ server.use(json());
 const mongoClient = new MongoClient(process.env.MONGO_URI)
 let db;
 
-try{
+try {
     await mongoClient.connect()
-    db=mongoClient.db("batePapoUol")
-} catch(err){
+    db = mongoClient.db("batePapoUol")
+} catch (err) {
     console.log(err)
 }
 
@@ -39,21 +39,20 @@ server.post("/participants", async (req, res) => {
         res.status(402).send(err)
         return
     }
-
-    const listUsers = await db.collection("initParticipant").find().toArray()
-    const userFound = listUsers.find(user => user.name === name)
-    if (userFound) {
-        res.sendStatus(409)
-        return
-    }
     try {
+        const listUsers = await db.collection("initParticipant").find().toArray()
+        const userFound = listUsers.find(user => user.name === name)
+        if (userFound) {
+            res.sendStatus(409)
+            return
+        }
         await db.collection("initParticipant").insertOne({
             name: name,
             lastStatus: Date.now()
         })
         await db.collection("message").insertOne({
             from: name,
-            to: "todos",
+            to: "Todos",
             text: "entrando na sala...",
             type: "status",
             time
@@ -79,30 +78,35 @@ server.get('/participants', async (req, res) => {
 server.get("/messages", async (req, res) => {
     const limit = parseInt(req.query.limit)
     const user = req.headers.user
-    const messages = await db.collection("message").find({$or: [{ to: "todos" }, { to: user }, {from: user}]}).toArray()
+    try {
+        const messages = await db.collection("message").find({ $or: [{ to: user }, { from: user }, { to: "Todos" }] }).toArray()
 
-    if (limit) {
-        const lastMessages = messages.slice(-limit)
-        res.send(lastMessages)
+        if (limit) {
+            const lastMessages = messages.slice(-limit)
+            res.send(lastMessages)
+        }
+        else {
+            res.send(messages)
+        }
+    } catch (err) {
+        console.log(err)
     }
-    else {
-        res.send(messages)
-    }
+
 })
 
 server.post("/messages", async (req, res) => {
     const { to, text, type } = req.body
     const from = req.headers.user;
 
-    const validation = messageSchema.validate({ to, text, type}, { abortEarly: false })
-    const isParticipant = await db.collection("initParticipant").findOne({ name: from })
-
-    if (validation.error || !isParticipant) {
-        res.sendStatus(422)
-        return
-    }
+    const validation = messageSchema.validate({ to, text, type }, { abortEarly: false })
 
     try {
+        const isParticipant = await db.collection("initParticipant").findOne({ name: from })
+
+        if (validation.error || !isParticipant) {
+            res.sendStatus(422)
+            return
+        }
         await db.collection("message").insertOne({ from, to, text, type, time })
         res.sendStatus(201)
     } catch (err) {
@@ -116,19 +120,37 @@ server.post("/status", async (req, res) => {
         const isOnline = await db.collection("initParticipant").findOne({ name: user })
         if (isOnline) {
             await db.collection("initParticipant").
-            updateOne(
-                {_id: isOnline._id  }, 
-                {$set: {...isOnline, lastStatus: Date.now()}})
+                updateOne(
+                    { _id: isOnline._id },
+                    { $set: { ...isOnline, lastStatus: Date.now() } })
             res.sendStatus(200)
         }
         else {
             res.sendStatus(404)
         }
-    }catch(err){
+    } catch (err) {
         console.log(err)
     }
-    
+
 })
+
+setInterval(async () => {
+    try {
+        const users = await db.collection("initParticipant").find({}).toArray()
+        console.log(users)      
+        users.map(async (u) => {
+            const now = Date.now()
+            if (now - u.lastStatus > 10) {
+                await db.collection("initParticipant").deleteOne({ name: u.name })
+                await db.collection("message")
+                    .insertOne(
+                        { from: u.name, to: "Todos", text: "sai da sala...", type: "status", time})
+            }
+        })
+    } catch (err) {
+        console.log(err)
+    }
+}, 15000)
 
 server.listen(5000, () => {
     console.log("Rodando em http://localhost:5000");
