@@ -137,10 +137,9 @@ server.post("/status", async (req, res) => {
 setInterval(async () => {
     try {
         const users = await db.collection("initParticipant").find({}).toArray()
-        console.log(users)      
         users.map(async (u) => {
             const now = Date.now()
-            if (now - u.lastStatus > 10) {
+            if (now - u.lastStatus > 10000) {
                 await db.collection("initParticipant").deleteOne({ name: u.name })
                 await db.collection("message")
                     .insertOne(
